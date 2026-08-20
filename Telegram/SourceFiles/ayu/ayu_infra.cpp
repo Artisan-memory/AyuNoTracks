@@ -53,7 +53,7 @@ void initWorker() {
 }
 
 void initRCManager() {
-	RCManager::getInstance().start();
+	// Remote config fetching is disabled; RCManager keeps its built-in lists.
 }
 
 void initTranslator() {

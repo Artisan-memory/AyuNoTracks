@@ -585,10 +585,7 @@ void LastCrashedWindow::sendReport() {
 		_sendReply = nullptr;
 	}
 
-	checkingFinished();
-
-	_pleaseSendReport.setText(u"Sending crash report..."_q);
-	_sendingState = SendingProgress;
+	_sendingState = SendingUnofficial;
 	_reportShown = false;
 	updateControls();
 }
