@@ -174,12 +174,27 @@ ID getBareID(not_null<PeerData*> peer) {
 	return peer->id.value & PeerId::kChatTypeMask;
 }
 
+ID selfBareID() {
+	const auto &domain = Core::App().domain();
+	if (!domain.started()) {
+		return 0;
+	}
+	const auto &account = domain.active();
+	return account.sessionExists() ? account.session().userId().bare : 0;
+}
+
 bool isExteraPeer(ID peerId) {
+	if (const auto self = selfBareID(); self && peerId == self) {
+		return true;
+	}
 	return RCManager::getInstance().developers().contains(peerId) || RCManager::getInstance().channels().
 		contains(peerId);
 }
 
 bool isSupporterPeer(ID peerId) {
+	if (const auto self = selfBareID(); self && peerId == self) {
+		return true;
+	}
 	return RCManager::getInstance().supporters().contains(peerId) || RCManager::getInstance().supporterChannels().
 		contains(peerId);
 }
