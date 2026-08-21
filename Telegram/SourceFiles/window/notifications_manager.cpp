@@ -33,6 +33,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "core/application.h"
+#include "ayu/ayu_settings.h"
+#include "history/history.h"
+#include "main/main_session.h"
 #include "core/version.h"
 #include "mainwindow.h"
 #include "api/api_reactions_notify_settings.h"
@@ -447,6 +450,20 @@ void System::schedule(Data::ItemNotification notification) {
 	const auto item = notification.item;
 	const auto type = notification.type;
 	const auto thread = item->notificationThread();
+	{
+		const auto mode = AyuSettings::getInstance().muteAccountMode(
+			item->history()->session().userId().bare);
+		if (mode == MuteAccountMode::All) {
+			thread->popNotification(notification);
+			return;
+		} else if (mode == MuteAccountMode::GroupsChannels) {
+			const auto peer = item->history()->peer;
+			if (peer->isChat() || peer->isMegagroup() || peer->isChannel()) {
+				thread->popNotification(notification);
+				return;
+			}
+		}
+	}
 	const auto skip = skipNotification(notification);
 	if (skip.value == SkipState::Skip) {
 		thread->popNotification(notification);
