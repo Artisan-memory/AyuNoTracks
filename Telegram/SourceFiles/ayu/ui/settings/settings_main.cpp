@@ -175,7 +175,7 @@ void BuildLinks(SectionBuilder &builder) {
 		.label = rpl::single(QString("Source on GitHub")),
 		.onClick = [=] {
 			QDesktopServices::openUrl(
-				QString("https://github.com/Artisan-memory/AyuGramDesktop"));
+				QString("https://github.com/Artisan-memory/AyuNoTracks"));
 		},
 	});
 
