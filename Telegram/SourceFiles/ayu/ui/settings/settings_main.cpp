@@ -125,11 +125,6 @@ void BuildCategories(SectionBuilder &builder) {
 		.targetSection = AyuChats::Id(),
 		.icon = { &st::menuIconChatBubble },
 	});
-	builder.addSectionButton({
-		.title = tr::ayu_CategoryOther(),
-		.targetSection = AyuOther::Id(),
-		.icon = { &st::menuIconFave },
-	});
 }
 
 void BuildLinks(SectionBuilder &builder) {
@@ -145,10 +140,10 @@ void BuildLinks(SectionBuilder &builder) {
 		.id = u"ayu/channel"_q,
 		.title = tr::ayu_LinksChannel(),
 		.icon = { &st::menuIconChannel },
-		.label = rpl::single(QString("@ayugram")),
+		.label = rpl::single(QString("@ayunotrack")),
 		.onClick = [=] {
 			controller->showPeerByLink(Window::PeerByLinkInfo{
-				.usernameOrId = QString("ayugram"),
+				.usernameOrId = QString("ayunotrack"),
 			});
 		},
 	});
@@ -177,10 +172,10 @@ void BuildLinks(SectionBuilder &builder) {
 		.id = u"ayu/website"_q,
 		.title = tr::ayu_LinksDocumentation(),
 		.icon = { &st::menuIconIpAddress },
-		.label = rpl::single(QString("docs.ayugram.one")),
+		.label = rpl::single(QString("Source on GitHub")),
 		.onClick = [=] {
 			QDesktopServices::openUrl(
-				QString("https://docs.ayugram.one"));
+				QString("https://github.com/Artisan-memory/AyuGramDesktop"));
 		},
 	});
 
