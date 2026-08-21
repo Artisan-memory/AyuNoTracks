@@ -8738,6 +8738,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_HideNotificationBadge" = "Hide Notification Badge";
 "ayu_HideNotificationBadgeDescription" = "Hides the notification counter on the app icon in the taskbar and tray.";
 "ayu_MuteAccountHeader" = "Silence account";
+"ayu_MuteAccountToggle" = "Silence this account";
+"ayu_MuteAccountDescription" = "Suppresses notifications for the selected account. Each account keeps its own set.";
 "ayu_MutePrivateChats" = "Mute private chats";
 "ayu_MuteGroups" = "Mute groups";
 "ayu_MuteChannels" = "Mute channels";

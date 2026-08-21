@@ -635,6 +635,153 @@ void BuildGhostEssentials(SectionBuilder &builder) {
 	});
 }
 
+void BuildMuteAccount(SectionBuilder &builder) {
+	builder.add([](const BuildContext &ctx) {
+		v::match(ctx, [&](const WidgetContext &wctx) {
+			const auto container = wctx.container;
+			const auto controller = wctx.controller;
+
+			auto activeCount = 0;
+			for (const auto &account : Core::App().domain().orderedAccounts()) {
+				if (account->sessionExists()) {
+					++activeCount;
+				}
+			}
+
+			const auto state = container->lifetime().make_state<GhostPickerState>();
+			state->selectedUserId = controller->session().userId().bare;
+
+			const auto title = AddSubsectionTitle(
+				container,
+				tr::ayu_MuteAccountHeader());
+
+			const auto pickerButton = Ui::CreateChild<Ui::LinkButton>(
+				container.get(),
+				GetAccountName(state->selectedUserId.current()),
+				st::ghostPickerButton);
+			state->pickerButton = pickerButton;
+
+			const auto arrow = Ui::CreateChild<Ui::AbstractButton>(container.get());
+			{
+				const auto &icon = st::ghostPickerArrow;
+				arrow->resize(icon.size());
+				arrow->paintRequest(
+				) | rpl::on_next([=, &icon] {
+					auto p = QPainter(arrow);
+					icon.paint(p, 0, 0, arrow->width());
+				}, arrow->lifetime());
+			}
+			arrow->setCursor(style::cur_pointer);
+
+			const auto showPicker = activeCount > 1;
+			pickerButton->setVisible(showPicker);
+			arrow->setVisible(showPicker);
+
+			rpl::combine(
+				title->geometryValue(),
+				container->widthValue(),
+				pickerButton->naturalWidthValue()
+			) | rpl::on_next([=](QRect r, int width, int natural) {
+				pickerButton->resizeToNaturalWidth(width / 2);
+				pickerButton->moveToRight(
+					st::defaultSubsectionTitlePadding.right() + arrow->width() + st::normalFont->spacew / 2,
+					r.y() + (r.height() - pickerButton->height()) / 2,
+					width);
+				arrow->moveToLeft(
+					pickerButton->x() + pickerButton->width() + st::normalFont->spacew / 2,
+					r.y() + (r.height() - arrow->height()) / 2);
+			}, pickerButton->lifetime());
+
+			const auto flag = [state](auto member) {
+				return [state, member] {
+					return AyuSettings::getInstance().muteAccount(
+						state->selectedUserId.current()).*member;
+				};
+			};
+			const auto setFlag = [state](auto member) {
+				return [state, member](bool v) {
+					const auto id = state->selectedUserId.current();
+					auto s = AyuSettings::getInstance().muteAccount(id);
+					s.*member = v;
+					AyuSettings::getInstance().setMuteAccount(id, s);
+					AyuSettings::save();
+				};
+			};
+
+			std::vector checkboxes{
+				NestedEntry{
+					tr::ayu_MutePrivateChats(tr::now),
+					flag(&MuteAccountSettings::mutePrivate),
+					setFlag(&MuteAccountSettings::mutePrivate)
+				},
+				NestedEntry{
+					tr::ayu_MuteGroups(tr::now),
+					flag(&MuteAccountSettings::muteGroups),
+					setFlag(&MuteAccountSettings::muteGroups)
+				},
+				NestedEntry{
+					tr::ayu_MuteChannels(tr::now),
+					flag(&MuteAccountSettings::muteChannels),
+					setFlag(&MuteAccountSettings::muteChannels)
+				},
+			};
+
+			auto collapsible = AddCollapsibleToggle(
+				container,
+				tr::ayu_MuteAccountToggle(),
+				std::move(checkboxes),
+				false,
+				tr::ayu_MuteAccountDescription(tr::now));
+			state->refreshCheckboxes = std::move(collapsible.refresh);
+			if (wctx.highlights && collapsible.widget) {
+				wctx.highlights->push_back(std::make_pair(
+					u"ayu/muteAccount"_q,
+					HighlightEntry{ collapsible.widget, {} }));
+			}
+
+			auto showMenu = [=] {
+				state->menu = base::make_unique_q<Ui::PopupMenu>(
+					pickerButton,
+					st::defaultPopupMenu);
+
+				for (const auto &account : Core::App().domain().orderedAccounts()) {
+					if (!account->sessionExists()) {
+						continue;
+					}
+					auto user = account->session().user();
+					auto id = account->session().userId().bare;
+					state->menu->addAction(
+						base::make_unique_q<AccountAction>(
+							state->menu->menu(),
+							st::defaultPopupMenu.menu,
+							user,
+							state->selectedUserId.current() == id,
+							[=] {
+								if (state->selectedUserId.current() == id) {
+									return;
+								}
+								state->selectedUserId = id;
+								state->pickerButton->setText(GetAccountName(id));
+								state->refreshCheckboxes();
+							}));
+				}
+
+				state->menu->popup(
+					pickerButton->mapToGlobal(
+						QPoint(pickerButton->width(), pickerButton->height())));
+			};
+			pickerButton->setClickedCallback(showMenu);
+			arrow->setClickedCallback(showMenu);
+		}, [&](const SearchContext &sctx) {
+			sctx.entries->push_back({
+				.id = u"ayu/muteAccount"_q,
+				.title = tr::ayu_MuteAccountToggle(tr::now),
+				.section = sctx.sectionId,
+			});
+		});
+	});
+}
+
 void BuildSpyEssentials(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	builder.addSubsectionTitle(tr::ayu_SpyEssentialsHeader());
 
@@ -688,6 +835,9 @@ const auto kMeta = BuildHelper({
 
 	builder.addSkip();
 	BuildGhostEssentials(builder);
+
+	builder.addSkip();
+	BuildMuteAccount(builder);
 
 	builder.addSkip();
 	BuildSpyEssentials(builder, ayu);
