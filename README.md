@@ -1,7 +1,9 @@
-# AyuGram Desktop — no-trackers build
+# AyuNoTracks
 
-A personal fork of [AyuGram Desktop](https://github.com/AyuGram/AyuGramDesktop) with
-every network path back to servers run by the fork author severed.
+A fork of [AyuGram Desktop](https://github.com/AyuGram/AyuGramDesktop) with every
+network path back to servers run by the fork author severed.
+
+**Channel: [@ayunotrack](https://t.me/ayunotrack)** — builds and release notes.
 
 Upstream is tracked closely — this fork carries a small set of surgical patches on
 top of the current AyuGram `dev` branch.
