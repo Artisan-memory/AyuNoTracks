@@ -32,10 +32,10 @@ enum class ChannelBottomButton {
 	DiscussWithFallback = 2,
 };
 
-enum class MuteAccountMode : int {
-	Off = 0,
-	All = 1,
-	GroupsChannels = 2,
+struct MuteAccountSettings {
+	bool mutePrivate = false;
+	bool muteGroups = false;
+	bool muteChannels = false;
 };
 
 enum class ContextMenuVisibility {
@@ -623,8 +623,8 @@ public:
 	[[nodiscard]] rpl::producer<bool> streamerModeChanges() const { return _streamerMode.changes(); }
 
 	friend void to_json(nlohmann::json &j, const AyuSettings &s);
-	[[nodiscard]] MuteAccountMode muteAccountMode(uint64 sessionUserId) const;
-	void setMuteAccountMode(uint64 sessionUserId, MuteAccountMode mode);
+	[[nodiscard]] MuteAccountSettings muteAccount(uint64 sessionUserId) const;
+	void setMuteAccount(uint64 sessionUserId, MuteAccountSettings settings);
 
 	friend void from_json(const nlohmann::json &j, AyuSettings &s);
 
@@ -637,7 +637,7 @@ private:
 	rpl::variable<bool> _saveMessagesHistory = true;
 	rpl::variable<bool> _saveForBots = false;
 	std::unordered_set<int64> _shadowBanIds;
-	std::map<uint64, int> _muteAccount = {};
+	std::map<uint64, MuteAccountSettings> _muteAccount = {};
 	rpl::variable<bool> _filtersEnabled = false;
 	rpl::variable<bool> _filtersEnabledInChats = false;
 	rpl::variable<bool> _hideFromBlocked = false;

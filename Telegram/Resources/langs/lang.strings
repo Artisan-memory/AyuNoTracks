@@ -8737,10 +8737,10 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_HideNotificationCounters" = "Hide Notification Counters";
 "ayu_HideNotificationBadge" = "Hide Notification Badge";
 "ayu_HideNotificationBadgeDescription" = "Hides the notification counter on the app icon in the taskbar and tray.";
-"ayu_MuteThisAccount" = "Mute this account";
-"ayu_MuteAccountOff" = "Off";
-"ayu_MuteAccountAll" = "Mute all notifications";
-"ayu_MuteAccountGroupsChannels" = "Mute groups and channels";
+"ayu_MuteAccountHeader" = "Silence account";
+"ayu_MutePrivateChats" = "Mute private chats";
+"ayu_MuteGroups" = "Mute groups";
+"ayu_MuteChannels" = "Mute channels";
 "ayu_AvatarCorners" = "Avatar Corners";
 "ayu_AvatarCornersCircle" = "Circle";
 "ayu_AvatarCornersSquare" = "Square";

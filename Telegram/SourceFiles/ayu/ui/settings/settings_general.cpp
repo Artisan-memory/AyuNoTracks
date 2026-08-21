@@ -13,13 +13,21 @@
 #include "ayu/ui/settings/settings_main.h"
 #include "base/platform/base_platform_info.h"
 #include "core/application.h"
+#include "base/unique_qptr.h"
+#include "data/data_user.h"
+#include "main/main_account.h"
+#include "main/main_domain.h"
 #include "main/main_session.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/text/format_values.h"
+#include "ui/vertical_list.h"
+#include "ui/widgets/popup_menu.h"
 #include "lang/lang_text_entity.h"
 #include "platform/platform_translate_provider.h"
 #include "settings/settings_builder.h"
 #include "settings/settings_common.h"
 #include "styles/style_menu_icons.h"
+#include "styles/style_layers.h"
 #include "styles/style_settings.h"
 #include "ui/boxes/single_choice_box.h"
 #include "ui/toast/toast.h"
@@ -304,31 +312,147 @@ void BuildQoLToggles(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	});
 }
 
-void BuildMuteAccount(SectionBuilder &builder, AyuSectionBuilder &ayu) {
-	const auto window = Core::App().activeWindow();
-	const auto controller = window ? window->sessionController() : nullptr;
-	if (!controller) {
-		return;
-	}
-	const auto session = &controller->session();
-	const auto userId = session->userId().bare;
+namespace {
 
-	ayu.addChooseButton({
-		.id = u"ayu/muteAccount"_q,
-		.title = tr::ayu_MuteThisAccount(),
-		.boxTitle = tr::ayu_MuteThisAccount(),
-		.initialSelection = static_cast<int>(
-			AyuSettings::getInstance().muteAccountMode(userId)),
-		.options = {
-			tr::ayu_MuteAccountOff(tr::now),
-			tr::ayu_MuteAccountAll(tr::now),
-			tr::ayu_MuteAccountGroupsChannels(tr::now),
-		},
-		.setter = [userId](int index) {
-			AyuSettings::getInstance().setMuteAccountMode(
-				userId, static_cast<MuteAccountMode>(index));
-			AyuSettings::save();
-		},
+QString MuteAccountLabel(uint64 userId) {
+	for (const auto &account : Core::App().domain().orderedAccounts()) {
+		if (account->sessionExists()
+			&& account->session().userId().bare == userId) {
+			const auto self = account->session().user();
+			const auto name = self->name();
+			if (!name.isEmpty()) {
+				return name;
+			}
+			const auto phone = Ui::FormatPhone(self->phone());
+			return phone.isEmpty() ? QString::number(userId) : phone;
+		}
+	}
+	return QString::number(userId);
+}
+
+struct MutePickerState {
+	rpl::variable<uint64> selectedUserId;
+	base::unique_qptr<Ui::PopupMenu> menu;
+	Ui::LinkButton *pickerButton = nullptr;
+};
+
+} // namespace
+
+void BuildMuteAccount(SectionBuilder &builder, AyuSectionBuilder &ayu) {
+	builder.add([](const BuildContext &ctx) {
+		v::match(ctx, [&](const WidgetContext &wctx) {
+			const auto container = wctx.container;
+			const auto controller = wctx.controller;
+
+			int activeCount = 0;
+			for (const auto &account : Core::App().domain().orderedAccounts()) {
+				if (account->sessionExists()) {
+					++activeCount;
+				}
+			}
+
+			const auto initialUserId = controller->session().userId().bare;
+			const auto state = container->lifetime().make_state<MutePickerState>();
+			state->selectedUserId = initialUserId;
+
+			const auto title = Ui::AddSubsectionTitle(
+				container,
+				tr::ayu_MuteAccountHeader());
+
+			const auto pickerButton = Ui::CreateChild<Ui::LinkButton>(
+				container.get(),
+				MuteAccountLabel(initialUserId),
+				st::defaultLinkButton);
+			state->pickerButton = pickerButton;
+			pickerButton->setVisible(activeCount > 1);
+
+			rpl::combine(
+				title->geometryValue(),
+				container->widthValue(),
+				pickerButton->naturalWidthValue()
+			) | rpl::on_next([=](QRect r, int width, int natural) {
+				pickerButton->resizeToNaturalWidth(width / 2);
+				pickerButton->moveToRight(
+					st::defaultSubsectionTitlePadding.right(),
+					r.y() + (r.height() - pickerButton->height()) / 2,
+					width);
+			}, pickerButton->lifetime());
+
+			pickerButton->setClickedCallback([=] {
+				state->menu = base::make_unique_q<Ui::PopupMenu>(
+					container.get(),
+					st::popupMenuWithIcons);
+				for (const auto &account
+						: Core::App().domain().orderedAccounts()) {
+					if (!account->sessionExists()) continue;
+					const auto uid = account->session().userId().bare;
+					state->menu->addAction(MuteAccountLabel(uid), [=] {
+						state->selectedUserId = uid;
+						pickerButton->setText(MuteAccountLabel(uid));
+					});
+				}
+				state->menu->popup(QCursor::pos());
+			});
+
+			auto addToggle = [=](
+					rpl::producer<QString> label,
+					Fn<bool(const MuteAccountSettings&)> getFlag,
+					Fn<void(MuteAccountSettings&, bool)> setFlag) {
+				const auto button = Settings::AddButtonWithIcon(
+					container,
+					std::move(label),
+					st::settingsButtonNoIcon);
+
+				button->toggleOn(
+					state->selectedUserId.value()
+						| rpl::map([=](uint64 id) {
+							return getFlag(
+								AyuSettings::getInstance().muteAccount(id));
+						})
+				);
+				button->toggledValue(
+				) | rpl::filter([=](bool v) {
+					const auto uid = state->selectedUserId.current();
+					return v != getFlag(
+						AyuSettings::getInstance().muteAccount(uid));
+				}) | rpl::on_next([=](bool v) {
+					const auto uid = state->selectedUserId.current();
+					auto s = AyuSettings::getInstance().muteAccount(uid);
+					setFlag(s, v);
+					AyuSettings::getInstance().setMuteAccount(uid, s);
+					AyuSettings::save();
+				}, button->lifetime());
+			};
+
+			addToggle(
+				tr::ayu_MutePrivateChats(),
+				[](const MuteAccountSettings &s) { return s.mutePrivate; },
+				[](MuteAccountSettings &s, bool v) { s.mutePrivate = v; });
+			addToggle(
+				tr::ayu_MuteGroups(),
+				[](const MuteAccountSettings &s) { return s.muteGroups; },
+				[](MuteAccountSettings &s, bool v) { s.muteGroups = v; });
+			addToggle(
+				tr::ayu_MuteChannels(),
+				[](const MuteAccountSettings &s) { return s.muteChannels; },
+				[](MuteAccountSettings &s, bool v) { s.muteChannels = v; });
+		}, [&](const SearchContext &sctx) {
+			sctx.entries->push_back({
+				.id = u"ayu/mutePrivateChats"_q,
+				.title = tr::ayu_MutePrivateChats(tr::now),
+				.section = sctx.sectionId,
+			});
+			sctx.entries->push_back({
+				.id = u"ayu/muteGroups"_q,
+				.title = tr::ayu_MuteGroups(tr::now),
+				.section = sctx.sectionId,
+			});
+			sctx.entries->push_back({
+				.id = u"ayu/muteChannels"_q,
+				.title = tr::ayu_MuteChannels(tr::now),
+				.section = sctx.sectionId,
+			});
+		});
 	});
 }
 

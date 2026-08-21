@@ -451,17 +451,17 @@ void System::schedule(Data::ItemNotification notification) {
 	const auto type = notification.type;
 	const auto thread = item->notificationThread();
 	{
-		const auto mode = AyuSettings::getInstance().muteAccountMode(
+		const auto peer = item->history()->peer;
+		const auto s = AyuSettings::getInstance().muteAccount(
 			item->history()->session().userId().bare);
-		if (mode == MuteAccountMode::All) {
+		const auto broadcast = peer->isBroadcast();
+		const auto grouped = peer->isChat() || peer->isMegagroup();
+		const auto isPrivate = peer->isUser();
+		if ((isPrivate && s.mutePrivate)
+			|| (grouped && s.muteGroups)
+			|| (broadcast && s.muteChannels)) {
 			thread->popNotification(notification);
 			return;
-		} else if (mode == MuteAccountMode::GroupsChannels) {
-			const auto peer = item->history()->peer;
-			if (peer->isChat() || peer->isMegagroup() || peer->isChannel()) {
-				thread->popNotification(notification);
-				return;
-			}
 		}
 	}
 	const auto skip = skipNotification(notification);

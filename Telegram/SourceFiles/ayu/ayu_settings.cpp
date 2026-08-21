@@ -1069,6 +1069,20 @@ void AyuSettings::setStreamerMode(bool val) {
 	save();
 }
 
+void to_json(nlohmann::json &j, const MuteAccountSettings &s) {
+	j = nlohmann::json{
+		{"mutePrivate", s.mutePrivate},
+		{"muteGroups", s.muteGroups},
+		{"muteChannels", s.muteChannels},
+	};
+}
+
+void from_json(const nlohmann::json &j, MuteAccountSettings &s) {
+	s.mutePrivate = j.value("mutePrivate", false);
+	s.muteGroups = j.value("muteGroups", false);
+	s.muteChannels = j.value("muteChannels", false);
+}
+
 void to_json(nlohmann::json &j, const AyuSettings &s) {
 	auto ghostAccounts = nlohmann::json::object();
 	for (const auto &[key, value] : s._ghostAccounts) {
@@ -1082,7 +1096,7 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 		{"saveMessagesHistory", s._saveMessagesHistory.current()},
 		{"saveForBots", s._saveForBots.current()},
 		{"shadowBanIds", s._shadowBanIds},
-		{"muteAccount", s._muteAccount},
+		{"muteAccountV2", s._muteAccount},
 		{"filtersEnabled", s._filtersEnabled.current()},
 		{"filtersEnabledInChats", s._filtersEnabledInChats.current()},
 		{"hideFromBlocked", s._hideFromBlocked.current()},
@@ -1170,18 +1184,18 @@ void to_json(nlohmann::json &j, const AyuSettings &s) {
 	};
 }
 
-MuteAccountMode AyuSettings::muteAccountMode(uint64 sessionUserId) const {
+MuteAccountSettings AyuSettings::muteAccount(uint64 sessionUserId) const {
 	const auto it = _muteAccount.find(sessionUserId);
 	return (it == _muteAccount.end())
-		? MuteAccountMode::Off
-		: static_cast<MuteAccountMode>(it->second);
+		? MuteAccountSettings{}
+		: it->second;
 }
 
-void AyuSettings::setMuteAccountMode(uint64 sessionUserId, MuteAccountMode mode) {
-	if (mode == MuteAccountMode::Off) {
+void AyuSettings::setMuteAccount(uint64 sessionUserId, MuteAccountSettings settings) {
+	if (!settings.mutePrivate && !settings.muteGroups && !settings.muteChannels) {
 		_muteAccount.erase(sessionUserId);
 	} else {
-		_muteAccount[sessionUserId] = static_cast<int>(mode);
+		_muteAccount[sessionUserId] = settings;
 	}
 }
 
@@ -1202,7 +1216,7 @@ void from_json(const nlohmann::json &j, AyuSettings &s) {
 	s._saveMessagesHistory = j.value("saveMessagesHistory", defaults._saveMessagesHistory.current());
 	s._saveForBots = j.value("saveForBots", defaults._saveForBots.current());
 	s._shadowBanIds = j.value("shadowBanIds", defaults._shadowBanIds);
-	s._muteAccount = j.value("muteAccount", defaults._muteAccount);
+	s._muteAccount = j.value("muteAccountV2", defaults._muteAccount);
 	s._filtersEnabled = j.value("filtersEnabled", defaults._filtersEnabled.current());
 	s._filtersEnabledInChats = j.value("filtersEnabledInChats", defaults._filtersEnabledInChats.current());
 	s._hideFromBlocked = j.value("hideFromBlocked", defaults._hideFromBlocked.current());
