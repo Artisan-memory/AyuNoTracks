@@ -1,156 +1,110 @@
-# AyuGram
+# AyuGram Desktop — no-trackers build
 
-![AyuGram Logo](.github/AyuGram.png) ![AyuChan](.github/AyuChan.png)
+A personal fork of [AyuGram Desktop](https://github.com/AyuGram/AyuGramDesktop) with
+every network path back to servers run by the fork author severed.
 
-[ English  |   [Русский](README-RU.md) ]
+Upstream is tracked closely — this fork carries a small set of surgical patches on
+top of the current AyuGram `dev` branch.
 
-## Features
+## What is removed
 
-- Full ghost mode (flexible)
-- Messages history
-- Anti-recall
-- Font customization
-- Streamer mode
-- Local Telegram Premium
-- Translator
-- Media preview & quick reaction on force click (macOS)
-- Enhanced appearance
+- **Autoupdate.** The client used to check `update.ayugram.one` periodically and
+  fetch signed binary updates from there. Disabled at compile time via
+  `DESKTOP_APP_DISABLE_AUTOUPDATE`. To update, download a new build from this
+  repo's releases page and replace the exe.
+- **Crash dumps.** The crash reporter previously uploaded minidumps to
+  `sentry.radolyn.com` when the user clicked "Send crash report". A minidump is a
+  snapshot of process memory and can contain message text. Breakpad is no longer
+  linked (`DESKTOP_APP_DISABLE_CRASH_REPORTS`), and the upload code path is
+  additionally patched out so nothing leaves the machine even if the crash window
+  opens.
+- **The remote-config beacon.** `RCManager` used to `GET update.ayugram.one/rc`
+  every hour from app start (with `api.exteragram.app` as fallback). The response
+  only carried developer/supporter ID lists, badge data and donation amounts, so
+  dropping the request costs nothing: the built-in fallback lists take over.
+  Effect: no periodic contact with any AyuGram-controlled server, and no leaked
+  IP or usage signal on startup.
 
-And many more. Check out our [Documentation](https://docs.ayugram.one/desktop/).
+## What is added or changed
 
-<h3>
-  <details>
-    <summary>Preview</summary>
-    <table>
-      <tr>
-        <td><img src='.github/demos/demo1.png' width='268' alt='Preferences'></td>
-        <td><img src='.github/demos/demo2.png' width='268' alt='AyuGram Options'></td>
-        <td><img src='.github/demos/demo3.png' width='268' alt='Message Filters'></td>
-      </tr>
-      <tr>
-        <td><img src='.github/demos/demo4.png' width='268' alt='Appearance'></td>
-        <td><img src='.github/demos/demo5.png' width='268' alt='Chats'></td>
-      </tr>
-    </table>
-  </details>
-</h3>
+- **Per-account notification silence.** A new setting under _AyuGram Preferences
+  → General_ that, for the currently signed-in account, can suppress
+  notifications entirely or only for groups and channels. Enforced at the
+  earliest possible point in the notification dispatch pipeline
+  (`Window::Notifications::System::schedule`), so it applies uniformly to sound,
+  tray, taskbar and OS toasts. The setting is stored per-account: switch
+  account, set independently.
+- **Local developer/supporter badge.** The badge visible next to your own name
+  in your own client. Client-side only, cosmetic, invisible to anyone else —
+  same mechanism AyuGram uses for its own badge ID list, just extended to include
+  the signed-in account.
+- **"Reset settings" and "Register URL scheme" live under General.** The whole
+  _Other_ section is gone from the sidebar; those two useful actions moved to
+  the bottom of _General_.
+- **Link section repointed.** In _AyuGram Preferences → Links_ the "Channel"
+  entry opens `@ayunotrack` and the "Source on GitHub" entry opens this
+  repository. Chat and Crowdin left alone.
 
-## Downloads
+## What is _not_ touched
 
-### Windows
+Everything AyuGram is actually good for is preserved as-is:
 
-#### Official
+- Ghost mode and its per-account granularity (read receipts, typing, online,
+  upload progress, offline-after-online).
+- Local database of deleted and edited messages (`tdata/ayudata.db`). Only
+  reactively populated — an incoming message hits this database only when a
+  delete or edit event actually arrives for it, and only if the corresponding
+  toggle is on.
+- The `is_noforwards()` / `is_restricted()` bypass that lets you save and
+  forward from channels that opted out.
+- Streamer mode, filters, translator, message history UI, everything else.
 
-You can download prebuilt Windows binary from [Releases tab](https://github.com/AyuGram/AyuGramDesktop/releases) or from
-the [Telegram channel](https://t.me/AyuGramReleases).
+## What is _not_ removed and worth knowing
 
-#### Winget
+- **Language pack download.** On startup the client fetches
+  `cdn.jsdelivr.net/gh/AyuGram/Languages@l10n_main/values/langs/<lang>/Shared.json`
+  once and caches it to `tdata/ayu/languages/`. The file only ever writes keys
+  under the `ayu_` prefix — it cannot overwrite Telegram's own strings. Not on
+  an AyuGram server, but does leak your IP and language to jsDelivr/Fastly one
+  time per launch. Left in because the feature is useful and the exposure is
+  minor.
+- **Regdate lookup.** Opening a foreign profile still sends the target user id
+  to `@ayugrambot` or `@exteraAuthBot` (inline query over MTProto) to get the
+  registration date. Not changed here; those bots receive whose profile you
+  looked up and when.
+- **Translation.** Sends message text to Google or Yandex if you invoke it.
+  That's inherent to the feature.
 
-```bash
-winget install RadolynLabs.AyuGramDesktop
+## Building
+
+Follow [docs/building-win.md](docs/building-win.md) upstream. The only extra
+flags this build uses at configure time:
+
+```
+-D DESKTOP_APP_DISABLE_AUTOUPDATE=ON
+-D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
 ```
 
-#### Scoop
+The exe is fully static (Qt, OpenSSL, FFmpeg, everything). No installer. Drop
+it in a folder inside your user profile, keep `tdata\` next to it — it is
+portable that way.
 
-```bash
-scoop bucket add extras
-scoop install ayugram
+## The diff, in one glance
+
+```
+Telegram/Resources/langs/lang.strings              (+4)   new UI strings
+Telegram/SourceFiles/ayu/ayu_infra.cpp             (-1)   RCManager beacon killed
+Telegram/SourceFiles/ayu/ayu_settings.{h,cpp}      (+~30) per-account mute setting
+Telegram/SourceFiles/ayu/ui/settings/settings_general.cpp
+                                                   (+~60) mute UI + reset/register-url moved here
+Telegram/SourceFiles/ayu/ui/settings/settings_main.cpp
+                                                   (~4)   drop Other category; repoint channel + docs links
+Telegram/SourceFiles/ayu/utils/telegram_helpers.cpp
+                                                   (+15)  local self badge
+Telegram/SourceFiles/core/crash_report_window.cpp  (-3)   sentry upload path disarmed
+Telegram/SourceFiles/window/notifications_manager.cpp
+                                                   (+17)  per-account mute gate at schedule()
 ```
 
-#### Self-built
-
-Follow [official guide](https://github.com/AyuGram/AyuGramDesktop/blob/dev/docs/building-win-x64.md) if you want to
-build by yourself.
-
-### macOS
-
-#### Official
-
-You can download prebuilt macOS package from [Releases tab](https://github.com/AyuGram/AyuGramDesktop/releases).
-
-#### Homebrew
-
-```bash
-brew install --cask ayugram
-```
-
-### Arch Linux
-
-#### From source (recommended)
-
-Install `ayugram-desktop` from [AUR](https://aur.archlinux.org/packages/ayugram-desktop).
-
-#### Prebuilt binaries
-
-Install `ayugram-desktop-bin` from [AUR](https://aur.archlinux.org/packages/ayugram-desktop-bin).
-
-Note: these binaries aren't officially maintained by us.
-
-### NixOS
-
-#### Flake (recommended)
-
-Install `ayugram-desktop` from [ndfined-crp/ayugram-desktop](https://github.com/ndfined-crp/ayugram-desktop)
-
-#### Nixpkgs
-
-Install `ayugram-desktop` from [nixpkgs](https://search.nixos.org/packages?channel=unstable&show=ayugram-desktop)
-
-### ALT Linux
-
-[Sisyphus](https://packages.altlinux.org/en/sisyphus/srpms/ayugram-desktop/)
-
-### Gentoo Linux
-
-See [this repository](https://codeberg.org/OverLessArtem/ayugram-ebuild-gentoo) for installation manual.
-
-### Void Linux
-See [this repository](https://codeberg.org/OverLessArtem/ayugram-template-void) for installation manual.
-
-### EPM
-
-`epm play ayugram`
-
-### Fedora
-
-From [RPM Fusion](https://admin.rpmfusion.org/pkgdb/package/free/ayugram-desktop/) repository.
-
-```bash
-dnf install ayugram-desktop
-```
-
-### Any other Linux distro
-
-Flatpak: https://github.com/0FL01/AyuGramDesktop-flatpak
-
-Or follow the [official guide](https://github.com/AyuGram/AyuGramDesktop/blob/dev/docs/building-linux.md).
-
-## Donation
-
-Enjoy using **AyuGram**? Consider sending us a tip!
-
-[Here's available methods.](https://docs.ayugram.one/donate/)
-
-## Credits
-
-### Telegram clients
-
-- [Telegram Desktop](https://github.com/telegramdesktop/tdesktop)
-- [Kotatogram](https://github.com/kotatogram/kotatogram-desktop)
-- [64Gram](https://github.com/TDesktop-x64/tdesktop)
-- [Forkgram](https://github.com/forkgram/tdesktop)
-
-### Libraries used
-
-- [JSON for Modern C++](https://github.com/nlohmann/json)
-- [SQLite](https://github.com/sqlite/sqlite)
-- [sqlite_orm](https://github.com/fnc12/sqlite_orm)
-- [androidx sources](https://github.com/androidx/androidx)
-
-### Icons
-
-- [Solar Icon Set](https://www.figma.com/community/file/1166831539721848736)
-
-### Bots
-
-- [TelegramDB](https://t.me/tgdatabase) for username lookup by ID (until closing free inline mode at 2 April 2026)
+Attribution: everything AyuGram is left in place — the LEGAL and LICENSE files
+stay unchanged, and this fork exists as a fork so that lineage is visible.
