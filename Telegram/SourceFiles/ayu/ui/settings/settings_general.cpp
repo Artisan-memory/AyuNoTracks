@@ -13,6 +13,8 @@
 #include "ayu/ui/settings/settings_main.h"
 #include "base/platform/base_platform_info.h"
 #include "core/application.h"
+#include "main/main_session.h"
+#include "ui/boxes/confirm_box.h"
 #include "lang/lang_text_entity.h"
 #include "platform/platform_translate_provider.h"
 #include "settings/settings_builder.h"
@@ -302,6 +304,69 @@ void BuildQoLToggles(SectionBuilder &builder, AyuSectionBuilder &ayu) {
 	});
 }
 
+void BuildMuteAccount(SectionBuilder &builder, AyuSectionBuilder &ayu) {
+	const auto window = Core::App().activeWindow();
+	const auto controller = window ? window->sessionController() : nullptr;
+	if (!controller) {
+		return;
+	}
+	const auto session = &controller->session();
+	const auto userId = session->userId().bare;
+
+	ayu.addChooseButton({
+		.id = u"ayu/muteAccount"_q,
+		.title = tr::ayu_MuteThisAccount(),
+		.boxTitle = tr::ayu_MuteThisAccount(),
+		.initialSelection = static_cast<int>(
+			AyuSettings::getInstance().muteAccountMode(userId)),
+		.options = {
+			tr::ayu_MuteAccountOff(tr::now),
+			tr::ayu_MuteAccountAll(tr::now),
+			tr::ayu_MuteAccountGroupsChannels(tr::now),
+		},
+		.setter = [userId](int index) {
+			AyuSettings::getInstance().setMuteAccountMode(
+				userId, static_cast<MuteAccountMode>(index));
+			AyuSettings::save();
+		},
+	});
+}
+
+void BuildAdvancedActions(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+
+	builder.addSkip();
+	builder.addDivider();
+	builder.addSkip();
+
+	builder.addButton({
+		.id = u"ayu/registerUrlScheme"_q,
+		.title = tr::ayu_RegisterURLScheme(),
+		.icon = { &st::menuIconLink },
+		.onClick = [=] {
+			Core::Application::RegisterUrlScheme();
+			controller->showToast(tr::lng_box_done(tr::now));
+		},
+	});
+	builder.addButton({
+		.id = u"ayu/resetSettings"_q,
+		.title = tr::ayu_ResetSettings(),
+		.icon = { &st::menuIconRestore },
+		.onClick = [=] {
+			controller->show(Ui::MakeConfirmBox({
+				.text = tr::ayu_ResetSettingsConfirmation(tr::rich),
+				.confirmed = [=](Fn<void()> &&close) {
+					AyuSettings::reset();
+					controller->showToast(tr::lng_box_done(tr::now));
+					close();
+				},
+				.confirmText = tr::lng_box_yes(),
+			}));
+		},
+	});
+	builder.addSkip();
+}
+
 const auto kMeta = BuildHelper({
 	.id = AyuGeneral::Id(),
 	.parentId = AyuMain::Id(),
@@ -311,8 +376,10 @@ const auto kMeta = BuildHelper({
 	auto ayu = AyuSectionBuilder(builder);
 
 	builder.addSkip();
-	BuildQoLToggles(builder, ayu);
+	BuildMuteAccount(builder, ayu);
 	builder.addSkip();
+	BuildQoLToggles(builder, ayu);
+	BuildAdvancedActions(builder);
 });
 
 } // namespace
